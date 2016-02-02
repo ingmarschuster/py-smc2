@@ -21,6 +21,9 @@ from numpy.linalg import inv
 import os
 from smc2.Model import Model
 
+
+
+
 class SVoneSP500Model(Model):
     def __init__(self):   
         super(Model, self).__init__()
@@ -34,6 +37,7 @@ class SVoneSP500Model(Model):
         self.latent = mod_latent.modelx
         self.latent.loadData(data_path)
         self.theta = mod_theta.modeltheta
+        self.dim = 5
 
 class SVmultiSP500Model(Model):
     def __init__(self):   
@@ -48,3 +52,4 @@ class SVmultiSP500Model(Model):
         self.latent = mod_latent.modelx
         self.latent.loadData(data_path)
         self.theta = mod_theta.modeltheta
+        self.dim = 9

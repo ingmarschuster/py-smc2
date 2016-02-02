@@ -33,7 +33,7 @@ from snippets.localfolder import get_path
 nargs = len(sys.argv)
 if nargs == 1:
     print "using default user file ('userfile.py' in the root folder)..."
-    userfilepath = "userfile.py"
+    userfilepath = "userfiles/SMC2SVoneSP500.py"
 if nargs == 2:
     userfilepath = sys.argv[1]
     print "working with user file %s" % userfilepath 
@@ -43,9 +43,9 @@ if nargs > 2:
 THISPATH = get_path()
 userfilefolder =  os.path.join(THISPATH, os.path.dirname(userfilepath))
 userfilebasename = os.path.basename(userfilepath)
-userfilebasename = userfilebasename.replace(".py", "")
+userfilebasename = 'SMC2SVoneSP500'
 sys.path.append(userfilefolder)
-f, filename, description = imp.find_module(userfilebasename)
+f, filename, description = imp.find_module(userfilebasename, ['/Users/arbeit/Documents/university/Promotion_NLP/py-smc2/userfiles/'])
 userfile = imp.load_module("userfile", f, filename, description)
 
 
@@ -135,7 +135,7 @@ if userfile.PROFILING:
     if userfile.METHOD == "SMC2":
         cProfile.run("""\
 algo = SMCsquare(model, algorithmparameters, \
-dynamicNx = userfile.DYNAMICNX, savingtimes = userfile.SAVINGTIMES)\
+dynamicNx = userfile.DYNAMICNX, savingtimes = userfile.SAVINGTIMES, autoinit = False)\
     """, tempproffile)
     elif userfile.METHOD == "SOPF":
         cProfile.run("""\
@@ -156,7 +156,7 @@ algo = AdaptivePMCMC(model, algorithmparameters)\
 else:
     if userfile.METHOD == "SMC2":
         algo = SMCsquare(model, algorithmparameters, \
-                dynamicNx = userfile.DYNAMICNX, savingtimes = userfile.SAVINGTIMES)
+                dynamicNx = userfile.DYNAMICNX, savingtimes = userfile.SAVINGTIMES, autoinit = False)
     elif userfile.METHOD == "SOPF":
         algo = SOPF(model, algorithmparameters, savingtimes = userfile.SAVINGTIMES)
     elif userfile.METHOD == "BSMC":

@@ -26,6 +26,8 @@ from src.parallelSIRs import ParallelSIRs
 
 __all__ = ['Model']
 
+#untransform: apply exp/logit -> constrained space
+#transform: apply log/inverse_logit -> unconstrained space
 
 class Model(object):
 
@@ -34,7 +36,8 @@ class Model(object):
     
     def rvs(self, num_theta):
         '''
-        Draw num_theta RVs from prior over theta
+        Draw num_theta RVs from prior over theta in unconstrained space
+        
         Returns
         =======
         generated_rvs   -  num_theta draws from the prior over theta
@@ -42,28 +45,13 @@ class Model(object):
         
         #beware: Smc^2 assumes particles are columnvectors.
         #thus we have to transpose
-        return self.theta.priorgenerator(num_theta).T
-    
-    def get_ll_estimate(self, theta_particles):
-        '''
-        Get estimate of likelihood in logspace for all theta particles
-        using a total of self.mdl_param.NX particles for the inner SMC that 
-        estimates the likelihood
+        rval = self.theta.transform(self.theta.priorgenerator(num_theta)).T
         
-        Parameters
-        ==========
-        theta_particles   -  Particles for the parameters
+        #the SMC^2 code comments say rval should contain untransformed (constrained) parameters
+        #we transform them to get them unconstrained        
         
-        Returns
-        =======
-        log_estimate_likelihood - estimate of the likelihood in log space
-        '''
-        #beware: Smc^2 assumes particles are columnvectors.
-        #thus we have to transpose
-        inner_smc = ParallelSIRs(self.mdl_param.NX, theta_particles.T, self.latent.model_obs, self.latent)
-        inner_smc.first_step()
-        inner_smc.next_steps()
-        return inner_smc.getTotalLogLike()
+        return rval
+  
     
     def logpdf(self, theta_particles):
         '''
@@ -73,19 +61,30 @@ class Model(object):
         
         Parameters
         ==========
-        theta_particles   -  Particles for the parameters
+        theta_particles   -  Particles for the parameters, assumed to be in the unconstrained (transformed) space 
         
         Returns
         =======
         log_estimate_posterior - estimate of the likelihood in log space
         '''
         
-        llhood = self.get_ll_estimate(theta_particles)
         
-        #beware: Smc^2 assumes particles are columnvectors.
-        #thus we have to transpose for self.theta.priorlogdensity
-        lprior = self.theta.priorlogdensity(theta_particles.T) 
+        #beware: Smc^2 assumes particles are columnvectors, and everything is at least 2d
+        #thus we have to transpose
+        theta_particles = np.atleast_2d(theta_particles).T
         
-        return  lprior + llhood 
+        constr_theta_particles = self.theta.untransform(theta_particles)
+        assert(not(np.any(np.isnan(constr_theta_particles)) or np.any(np.isinf(constr_theta_particles))))
+        
+        inner_smc = ParallelSIRs(self.mdl_param.NX, constr_theta_particles, self.latent.model_obs, self.latent); inner_smc.first_step(); inner_smc.next_steps()
+        
+
+        lprior = self.theta.priorlogdensity(theta_particles) # Takes unconstrained (transformed) parameters
+        
+        return  lprior + inner_smc.getTotalLogLike() 
+    
+    def get_logpdf_closure(self):
+        rval = lambda theta: self.logpdf(theta)
+        return rval
 
         

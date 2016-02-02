@@ -34,12 +34,13 @@ from scipy.spatial import distance
 from resampling import IndResample, resample2D
 from various import ESSfunction, progressbar
 from parallelSIRs import ParallelSIRs
+import cPickle as pick
 
 class SMCsquare:
     """
     """
     def __init__(self, model, algorithmparameters, \
-            dynamicNx = True, savingtimes = [], autoinit = True):
+            dynamicNx = True, savingtimes = [], autoinit = True, pickle = False):
         ## essential things
         # get the model:
         self.modelx = model["modelx"]
@@ -111,6 +112,10 @@ class SMCsquare:
         for key, element in algorithmparameters.items():
             print key, ":", element
         print "------------------"
+        if pickle:
+            with open('model.pick', 'w') as f:
+                pick.dump(self, f)
+            return
         if autoinit:
             self.first_step()
             self.next_steps()
@@ -154,17 +159,25 @@ class SMCsquare:
         """
         Perform a PMMH move step on each theta-particle.
         """
+        
+        #### INGMAR: This is where the proposal is computed
         transformedthetastar = self.modeltheta.proposal(self.transformedthetaparticles, \
                 self.proposalcovmatrix, hyperparameters = self.modeltheta.hyperparameters,\
                 proposalmean = self.proposalmean, proposalkernel = self.AP["proposalkernel"])
         thetastar = self.modeltheta.untransform(transformedthetastar)
+        
+        ###### INGMAR: This is where the likelihood is estimated
         proposedSIRs = ParallelSIRs(self.Nx, thetastar, self.observations[0:(t+1)], self.modelx)
         proposedSIRs.first_step()
         proposedSIRs.next_steps()
         proposedTotalLogLike = proposedSIRs.getTotalLogLike()
+        
+        
         acceptations = zeros(self.Ntheta)
+
         proposedpriordensityeval = apply_along_axis(func1d = self.modeltheta.priorlogdensity,\
                 arr = transformedthetastar, axis = 0)
+                
         proposedlogomega = proposedTotalLogLike + proposedpriordensityeval
         currentlogomega = self.totalLogLike + self.priordensityeval
         # if proposal kernel == "randomwalk", then nothing else needs to be computed
@@ -219,6 +232,7 @@ class SMCsquare:
             TandWresults = self.modelx.transitionAndWeight(self.xparticles, \
                     self.observations[t], self.thetaparticles, t + 1)
             self.xparticles[...] = TandWresults["states"]
+            assert()
             if not(excluded):
                 self.logxweights[...] = TandWresults["weights"]
                 # in case the measure function returns nans or infs, set the weigths very low
@@ -254,15 +268,19 @@ class SMCsquare:
                 progressbar(t / (self.T - 1), text =\
                         " ESS: %.3f - resample move step at iteration = %i" % (self.ESS[t], t))
                 covdict = self.computeCovarianceAndMean(t)
+                
                 if self.AP["proposalkernel"] == "randomwalk":
                     self.proposalcovmatrix = self.AP["rwvariance"] * covdict["cov"]
                     self.proposalmean = None
                 elif self.AP["proposalkernel"] == "independent":
                     self.proposalcovmatrix = covdict["cov"]
                     self.proposalmean = covdict["mean"]
+                    
                 self.thetaresample(t)
                 self.resamplingindices.append(t)
                 self.ESS[t] = ESSfunction(exp(self.thetalogweights[t, :]))
+                
+                ###### INGMAR: this is where PMCMC moves are made. we can do PMC proposals instead here
                 for move in range(self.AP["nbmoves"]):
                     self.PMCMCstep(t)
                     acceptrate = self.acceptratios[-1]
